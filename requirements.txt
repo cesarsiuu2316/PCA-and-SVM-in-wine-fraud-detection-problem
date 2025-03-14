@@ -1,0 +1,15 @@
+# Archivo requirements.txt
+
+# Bibliotecas principales para análisis de datos
+pandas
+numpy
+
+# Persistencia de modelos
+joblib
+
+# Visualización
+matplotlib
+seaborn
+
+# Machine Learning
+scikit-learn
