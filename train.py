@@ -6,7 +6,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
-from sklearn.preprocessing import normalize
+from sklearn.preprocessing import MinMaxScaler
 
 def load_data(filepath):
     """Load the dataset from a CSV file."""
@@ -50,11 +50,13 @@ def eda(data):
     print(data.isnull().sum())
 
 def show_correlated_values(data):
-    # label encoding
-    data["quality"] = data["quality"].map({"Legit": 1, "Fraud": 0})
-    # one-hot encoding
-    data = pd.get_dummies(data, columns=["type"], dtype=int)
-    print(data.head(10))
+    #  
+
+    # Correlation matrix
+    corr = data.corr()
+    sns.heatmap(corr, annot=True, cmap="coolwarm", fmt=".2f")
+    plt.title("Matriz de correlación")
+    plt.show()
 
 
 def calculate_fraud_percentage(data):
@@ -68,13 +70,22 @@ def calculate_fraud_percentage(data):
         print("The 'Fraud' category is not present in the dataset.")
 
 def preprocess_data(data):
-    """Preprocess the data (e.g., handle missing values, encode labels)."""
+    """Preprocess the data (e.g., handle missing values, encode labels and normalization)."""
+    # Encoding
     # label encoding
     data["quality"] = data["quality"].map({"Legit": 1, "Fraud": 0})
     # one-hot encoding
-    data = pd.get_dummies(data, columns=["type"], dtype=int)
-    print(data.head(10))
-    return data
+    normalized_data = pd.get_dummies(data, columns=["type"], dtype=int)
+    column_names = normalized_data.columns.tolist()
+    # No missing values to handle
+
+    # Normalization
+    scaler = MinMaxScaler()
+    normalized_data = scaler.fit_transform(normalized_data)
+    normalized_data = pd.DataFrame(normalized_data, columns=column_names) 
+    print("\nDatos normalizados:")
+    print(normalized_data.head())
+    return normalized_data
 
 def apply_pca(data):
     """Apply PCA to reduce dimensionality."""
