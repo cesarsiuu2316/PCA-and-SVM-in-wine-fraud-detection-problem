@@ -11,6 +11,10 @@
 
 ### Clone repository
 
+```bash
+git clone https://github.com/cesarsiuu2316/PCA-and-SVM-in-wine-fraud-detection-problem.git
+```
+
 ### 1. Create and activate a virtual environment
 It is recommended to use a virtual environment to install dependencies. Follow these steps or you can use a conda environment:
 
