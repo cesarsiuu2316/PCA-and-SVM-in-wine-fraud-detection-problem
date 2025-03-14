@@ -50,10 +50,14 @@ def eda(data):
     print(data.isnull().sum())
 
 def show_correlated_values(data):
-    #  
+    # Correlation between the dependent variable and the independent variables
+    quality_corr = data.corr()["quality"].sort_values(ascending=True)
+    print("\nCorrelación con la variable dependiente:")
+    print(quality_corr)
 
     # Correlation matrix
     corr = data.corr()
+    plt.figure(figsize=(14, 8))
     sns.heatmap(corr, annot=True, cmap="coolwarm", fmt=".2f")
     plt.title("Matriz de correlación")
     plt.show()
@@ -108,11 +112,11 @@ def main():
     filepath = 'Data/wine_fraud.csv'
     data = load_data(filepath)
     eda(data)
-    preprocess_data(data)
-    #show_correlated_values(data)
-    data = apply_pca(data)
-    data = split_data(data)
-    train_model(data)
+    preprocessed_data = preprocess_data(data)
+    show_correlated_values(preprocessed_data)
+    preprocessed_data = apply_pca(preprocessed_data)
+    preprocessed_data = split_data(preprocessed_data)
+    train_model(preprocessed_data)
 
 if __name__ == "__main__":
     main()
