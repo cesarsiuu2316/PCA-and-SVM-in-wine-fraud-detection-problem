@@ -1,15 +1,15 @@
-"""
-Tarea 2: PCA and SVM used for wine fraud detection
-"""
-
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.preprocessing import MinMaxScaler
+from sklearn.model_selection import train_test_split, GridSearchCV
+from sklearn.preprocessing import StandardScaler
+from sklearn.svm import SVC
+from sklearn.metrics import accuracy_score
+import joblib
 
 def load_data(filepath):
-    """Load the dataset from a CSV file."""
     data = pd.read_csv(filepath)
     if data is None:
         print("Error cargando el archivo.")
@@ -18,7 +18,6 @@ def load_data(filepath):
     return data
 
 def eda(data):
-    """Perform exploratory data analysis (EDA)."""
     print("Unique wine types:", data["type"].unique())
     print("Unique quality values:", data["quality"].unique())
 
@@ -64,7 +63,6 @@ def show_correlated_values(data):
 
 
 def calculate_fraud_percentage(data):
-    """Calculate and print the percentage of fraudulent wines."""
     try:
         vino_tinto = data[data["type"] == "red"]["quality"].value_counts(normalize=True)["Fraud"] * 100
         vino_blanco = data[data["type"] == "white"]["quality"].value_counts(normalize=True)["Fraud"] * 100
@@ -76,10 +74,13 @@ def calculate_fraud_percentage(data):
 def preprocess_data(data):
     """Preprocess the data (e.g., handle missing values, encode labels and normalization)."""
     # Encoding
+    
     # label encoding
     data["quality"] = data["quality"].map({"Legit": 1, "Fraud": 0})
+    
     # one-hot encoding
     normalized_data = pd.get_dummies(data, columns=["type"], dtype=int)
+    
     column_names = normalized_data.columns.tolist()
     # No missing values to handle
 
@@ -98,15 +99,47 @@ def apply_pca(data):
     return data
 
 def split_data(data):
-    """Split the data into training and testing sets."""
-    # Placeholder for splitting data
-    print("Data splitting function not implemented yet.")
-    return data
+    X = data.drop(columns=["quality"])  # Variables predictoras
+    y = data["quality"]  # Variable objetivo
+
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.10, random_state=101, stratify=y)
+
+    return X_train, X_test, y_train, y_test
 
 def train_model(data):
-    """Train a model (e.g., SVM) on the dataset."""
-    # Placeholder for training logic
-    print("Model training function not implemented yet.")
+
+    X_train, X_test, y_train, y_test = split_data(data)
+
+    # Estandarizar los datos (SVM es sensible a la escala)
+    scaler = StandardScaler()
+    X_train_scaled = scaler.fit_transform(X_train)
+    X_test_scaled = scaler.transform(X_test)
+
+    # ----------------------------------------------------
+    param_grid = {
+        "C": [0.001, 0.01, 0.1, 0.5, 1],
+        "gamma": ["scale", "auto"],
+        "kernel": ["linear", "poly", "rbf", "sigmoid"]
+    }
+
+    svc = SVC(class_weight="balanced")
+
+    # Grid search
+    grid_search = GridSearchCV(svc, param_grid, cv=5, scoring="accuracy", verbose=2, n_jobs=-1)
+
+    # entrenamiento del modelo
+    grid_search.fit(X_train_scaled, y_train)
+
+    # hiperparámetros
+    print("Hiperparametros:", grid_search.best_params_)
+
+    # Guardar modelo en joblib
+    joblib.dump(grid_search.best_estimator_, "modelo_svc.pkl")
+
+    print("modelo_svc.pkl guardado")
+
+    return grid_search.best_estimator_
+
 
 def main():
     filepath = 'Data/wine_fraud.csv'
