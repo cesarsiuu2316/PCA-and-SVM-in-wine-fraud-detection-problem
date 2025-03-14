@@ -2,12 +2,13 @@
 Tarea 2: PCA and SVM used for wine fraud detection
 """
 
+import joblib
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.decomposition import PCA
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import GridSearchCV, train_test_split
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.svm import SVC
 
@@ -123,11 +124,21 @@ def visualize_pca(X_pca_2d, X_pca_3d, y):
 def split_data(X, y):
     return train_test_split(X, y, test_size=0.1, random_state=101)
 
-def train_models(X_scaled, X_pca_2d, X_pca_3d, y):
+def train_model(X_train, y_train, label, param_grid, svc):
+    print(f"Training model for: {label}")
+    # Perform grid search
+    model = GridSearchCV(svc, param_grid, cv=5, verbose=2, n_jobs=-1)
+    model.fit(X_train, y_train)
+    # Save the best model for this Label
+    print(f"Best parameters for {label}: {model.best_params_}")
+    print(f"Best score for {label}: {model.best_score_}")
+    return model
+
+def split_train_and_save_models(X_scaled, X_pca_2d, X_pca_3d, y):
     # Split the data
-    X_train, X_test, y_train, y_test = split_data(X_scaled)
-    X_train_pca2, X_test_pca2, _, _ = split_data(X_pca_2d)
-    X_train_pca3, X_test_pca3, _, _ = split_data(X_pca_3d)
+    X_train, X_test, y_train, y_test = split_data(X_scaled, y)
+    X_train_pca2, X_test_pca2, _, _ = split_data(X_pca_2d, y)
+    X_train_pca3, X_test_pca3, _, _ = split_data(X_pca_3d, y)
 
     # Define grid search parameters
     param_grid = {
@@ -137,7 +148,40 @@ def train_models(X_scaled, X_pca_2d, X_pca_3d, y):
     }
 
     # Initialize the SVM model
-    svm = SVC(class_weight="balanced")
+    svc = SVC(class_weight="balanced")
+    model_original_x = train_model(X_train, y_train, "original_x", param_grid, svc)
+    model_pca2 = train_model(X_train_pca2, y_train, "pca2", param_grid, svc)
+    model_pca3 = train_model(X_train_pca3, y_train, "pca3", param_grid, svc)
+
+    # Store models and scores
+    models = {
+        "original_x": model_original_x,
+        "pca2": model_pca2,
+        "pca3": model_pca3
+    }
+
+    # Find the best model based on Grid Search score
+    best_model_label = max(models, key=lambda label: models[label].best_score_)
+    best_model = models[best_model_label]
+
+    # Save the best model
+    joblib.dump(best_model.best_estimator_, f"best_svc_model.pkl")
+    print(f"\n🔥 Best Model: {best_model_label}")
+    print(f"🏆 Best Parameters: {best_model.best_params_}")
+    print(f"📊 Best Score: {best_model.best_score_}")
+    print(f"✅ Best model saved as 'best_svc_model_{best_model_label}.pkl'")
+    
+    if best_model_label == "original_x":
+        X_test = X_test
+    elif best_model_label == "pca2":
+        X_test = X_test_pca2
+    else:
+        X_test = X_test_pca3
+
+    # Save x_test and y_test
+    joblib.dump(X_test, "X_test.pkl")
+    joblib.dump(y_test, "y_test.pkl")
+
 
 def main():
     filepath = 'Data/wine_fraud.csv'
@@ -148,11 +192,10 @@ def main():
     X_pca = apply_pca(preprocessed_data)
     X_pca_2d = X_pca[0]
     X_pca_3d = X_pca[1]
-    visualize_pca(X_pca_2d, X_pca_3d, data["quality"])
-
-    preprocessed_data = split_data(preprocessed_data)
-    
-    train_model(preprocessed_data)
+    X_original = preprocessed_data.drop("quality", axis=1)
+    y = preprocessed_data["quality"]
+    visualize_pca(X_pca_2d, X_pca_3d, y)
+    split_train_and_save_models(X_original, X_pca_2d, X_pca_3d, y)
 
 if __name__ == "__main__":
     main()
