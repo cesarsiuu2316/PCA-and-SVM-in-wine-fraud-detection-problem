@@ -8,8 +8,12 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.decomposition import PCA
 from sklearn.model_selection import GridSearchCV, train_test_split
-from sklearn.preprocessing import MinMaxScaler
+from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVC
+from imblearn.over_sampling import SMOTE
+from imblearn.under_sampling import RandomUnderSampler
+from imblearn.pipeline import Pipeline
+
 
 def load_data(filepath):
     """Load the dataset from a CSV file."""
@@ -22,14 +26,16 @@ def load_data(filepath):
 
 def eda(data):
     """Perform exploratory data analysis (EDA)."""
-    print("Unique wine types:", data["type"].unique())
-    print("Unique quality values:", data["quality"].unique())
+    print("Tipos de vino únicos:", data["type"].unique())
+    print("Tipos de calidad únicos:", data["quality"].unique())
+    print("Shape:", data.shape)
 
     # Data visualizations
     plt.figure(figsize=(12, 6))
     
     # Quality distribution
     quality_counts = data["quality"].value_counts()
+    print("\nValue counts", quality_counts)
     plt.subplot(1, 2, 1)
     sns.barplot(x=quality_counts.index, y=quality_counts.values, hue=quality_counts.index, palette="pastel")
     plt.xlabel("Quality")
@@ -82,24 +88,26 @@ def preprocess_data(data):
     # label encoding
     data["quality"] = data["quality"].map({"Legit": 1, "Fraud": 0})
     # one-hot encoding
-    normalized_data = pd.get_dummies(data, columns=["type"], dtype=int)
-    column_names = normalized_data.columns.tolist()
+    new_data = pd.get_dummies(data, columns=["type"], dtype=int)
+    features_to_scale = new_data.drop(["quality", "type_red", "type_white"], axis=1)
     # No missing values to handle
     # Normalization
-    scaler = MinMaxScaler()
-    normalized_data = scaler.fit_transform(normalized_data)
-    normalized_data = pd.DataFrame(normalized_data, columns=column_names) 
-    print("\nDatos normalizados:")
-    print(normalized_data.head())
-    return normalized_data
+    scaler = StandardScaler()
+    normalized_data = scaler.fit_transform(features_to_scale)
+    normalized_data = pd.DataFrame(normalized_data, columns=features_to_scale.columns) 
 
-def apply_pca(x):
-    # Apply PCA with 2 and 3 dimensions to reduce dimensionality
-    pca_2d = PCA(n_components=2)
-    X_pca_2d = pca_2d.fit_transform(x)
-    pca_3d = PCA(n_components=3)
-    X_pca_3d = pca_3d.fit_transform(x)
-    return [X_pca_2d, X_pca_3d]
+    # Concatenate the normalized data with the encoded labels
+    processed_data = pd.concat([normalized_data, new_data[["quality", "type_red", "type_white"]]], axis=1)
+    print("\nDatos normalizados:")
+    print(processed_data.head())
+    return processed_data
+
+def apply_pca(x_train, x_test, n):
+    # Apply PCA  to reduce dimensionality
+    pca = PCA(n_components=n)
+    x_train_pca = pca.fit_transform(x_train)
+    x_test_pca = pca.transform(x_test)
+    return x_train_pca, x_test_pca
 
 def visualize_pca(X_pca_2d, X_pca_3d, y):
     # Scatter plot for 2D PCA
@@ -133,24 +141,46 @@ def train_model(X_train, y_train, label, param_grid, svc):
     print(f"Best score for {label}: {model.best_score_}")
     return model
 
-def split_train_and_save_models(X_scaled, X_pca_2d, X_pca_3d, y):
-    # Split the data
-    X_train, X_test, y_train, y_test = split_data(X_scaled, y)
-    X_train_pca2, X_test_pca2, _, _ = split_data(X_pca_2d, y)
-    X_train_pca3, X_test_pca3, _, _ = split_data(X_pca_3d, y)
+def apply_undersampling_and_oversampling(X_train, y_train):
+    # Define the pipeline
+    over_sampler = SMOTE(sampling_strategy=0.1) # add synthetic samples, to have exactly 20% of the majority class / 0.2*6251 = 1250
+    #under_sampler = RandomUnderSampler(sampling_strategy=1) # reduce the majority class to 150% of the minority class / 1.5*1250 = 1875
+    # Apply the pipeline
+    X_resampled, y_resampled = over_sampler.fit_resample(X_train, y_train)
+    quality_counts = y_train.value_counts()
+    print("\nValue counts y_train", quality_counts)
+    quality_counts = y_resampled.value_counts()
+    print("\nValue counts oversample", quality_counts)
+    """
+    X_resampled, y_resampled = under_sampler.fit_resample(X_resampled, y_resampled)
+    quality_counts = y_resampled.value_counts()
+    print("\nValue counts undersample", quality_counts)    
+    """
+    return X_resampled, y_resampled
 
+def split_train_and_save_models(X_train_resampled, X_pca_train_2d, X_pca_train_3d, y_train_resampled, X_test, X_pca_test_2d, X_pca_test_3d, y_test):
     # Define grid search parameters
     param_grid = {
         "C": [0.001, 0.01, 0.1, 0.5, 1],
         "gamma": ["scale", "auto"],
         "kernel": ["linear", "poly", "rbf", "sigmoid"]
     }
-
-    # Initialize the SVM model
+    """
+    # parameters for polynomial kernel, degree 4 takes too long to train
+    param_grid = {
+        "C": [0.001, 0.01, 0.1, 0.5, 1],
+        "gamma": ["scale", "auto"],
+        "kernel": ["poly"],
+        "degree": [2, 3, 4]
+    }
+    """
+    # Initialize the SVM model without over-sampling and under-sampling
     svc = SVC(class_weight="balanced")
-    model_original_x = train_model(X_train, y_train, "original_x", param_grid, svc)
-    model_pca2 = train_model(X_train_pca2, y_train, "pca2", param_grid, svc)
-    model_pca3 = train_model(X_train_pca3, y_train, "pca3", param_grid, svc)
+    # Initialize the SVM model with over-sampling and under-sampling
+    #svc = SVC()
+    model_original_x = train_model(X_train_resampled, y_train_resampled, "original_x", param_grid, svc)
+    model_pca2 = train_model(X_pca_train_2d, y_train_resampled, "pca2", param_grid, svc)
+    model_pca3 = train_model(X_pca_train_3d, y_train_resampled, "pca3", param_grid, svc)
 
     # Store models and scores
     models = {
@@ -173,9 +203,9 @@ def split_train_and_save_models(X_scaled, X_pca_2d, X_pca_3d, y):
     if best_model_label == "original_x":
         X_test = X_test
     elif best_model_label == "pca2":
-        X_test = X_test_pca2
+        X_test = X_pca_test_2d
     else:
-        X_test = X_test_pca3
+        X_test = X_pca_test_3d
 
     # Save x_test and y_test
     joblib.dump(X_test, "X_test.pkl")
@@ -188,13 +218,36 @@ def main():
     eda(data)
     preprocessed_data = preprocess_data(data)
     show_correlated_values(preprocessed_data)
-    X_pca = apply_pca(preprocessed_data)
+
+    # Split the data
+    X_original = preprocessed_data.drop("quality", axis=1)
+    y = preprocessed_data["quality"]
+    X_train, X_test, y_train, y_test = split_data(X_original, y)
+
+    # Undersampling and Oversampling
+    #X_train_resampled, y_train_resampled = apply_undersampling_and_oversampling(X_train, y_train)
+    # without undersampling and oversampling
+    X_train_resampled, y_train_resampled = X_train, y_train
+
+    # Apply PCA
+    [X_pca_train_2d, X_pca_test_2d] = apply_pca(X_train_resampled, X_test, 2)
+    [X_pca_train_3d, X_pca_test_3d] = apply_pca(X_train_resampled, X_test, 3)
+
+    # Visualize PCA for 2D and 3D training data
+    visualize_pca(X_pca_train_2d, X_pca_train_3d, y_train_resampled)
+
+    # Split, train and save models
+    split_train_and_save_models(X_train_resampled, X_pca_train_2d, X_pca_train_3d, y_train_resampled, X_test, X_pca_test_2d, X_pca_test_3d, y_test)
+
+    """
     X_pca_2d = X_pca[0]
     X_pca_3d = X_pca[1]
     X_original = preprocessed_data.drop("quality", axis=1)
     y = preprocessed_data["quality"]
     visualize_pca(X_pca_2d, X_pca_3d, y)
-    split_train_and_save_models(X_original, X_pca_2d, X_pca_3d, y)
+    X_original, y  = apply_undersampling_and_oversampling(X_original, y)
+    split_train_and_save_models(X_original, X_pca_2d, X_pca_3d, y)"
+    """
 
 if __name__ == "__main__":
     main()

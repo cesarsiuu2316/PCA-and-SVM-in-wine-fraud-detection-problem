@@ -1,13 +1,16 @@
-# Archivo requirements.txt
+# requirements.txt
 
-# Bibliotecas principales para análisis de datos
+# Data analysis
 pandas
 numpy
 
-# Persistencia de modelos
+# Undersampling y oversampling de datos
+imblearn
+
+# Model preservation
 joblib
 
-# Visualización
+# visualization
 matplotlib
 seaborn
 
