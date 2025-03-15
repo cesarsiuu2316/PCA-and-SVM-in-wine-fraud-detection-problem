@@ -239,15 +239,5 @@ def main():
     # Split, train and save models
     split_train_and_save_models(X_train_resampled, X_pca_train_2d, X_pca_train_3d, y_train_resampled, X_test, X_pca_test_2d, X_pca_test_3d, y_test)
 
-    """
-    X_pca_2d = X_pca[0]
-    X_pca_3d = X_pca[1]
-    X_original = preprocessed_data.drop("quality", axis=1)
-    y = preprocessed_data["quality"]
-    visualize_pca(X_pca_2d, X_pca_3d, y)
-    X_original, y  = apply_undersampling_and_oversampling(X_original, y)
-    split_train_and_save_models(X_original, X_pca_2d, X_pca_3d, y)"
-    """
-
 if __name__ == "__main__":
     main()
