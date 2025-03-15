@@ -7,7 +7,7 @@
 
 ---
 
-## **PSteps to run the project**
+## **Steps to run the project**
 
 ### Clone repository
 
